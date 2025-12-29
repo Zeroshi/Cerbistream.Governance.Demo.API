@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 18
+VisualStudioVersion = 18.3.11312.210 d18.3
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cerbistream.Governance.Demo", "Cerbistream.Governance.Demo\Cerbistream.Governance.Demo.csproj", "{FA4602B6-675A-4376-B7AE-87BC717CED09}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Cerbistream.Governance.Demo.Tests", "Cerbistream.Governance.Demo.Tests\Cerbistream.Governance.Demo.Tests.csproj", "{88ADC1C4-926F-7BF0-B891-135CD9D60DBD}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{FA4602B6-675A-4376-B7AE-87BC717CED09}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{FA4602B6-675A-4376-B7AE-87BC717CED09}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{FA4602B6-675A-4376-B7AE-87BC717CED09}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{FA4602B6-675A-4376-B7AE-87BC717CED09}.Release|Any CPU.Build.0 = Release|Any CPU
+		{88ADC1C4-926F-7BF0-B891-135CD9D60DBD}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{88ADC1C4-926F-7BF0-B891-135CD9D60DBD}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{88ADC1C4-926F-7BF0-B891-135CD9D60DBD}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{88ADC1C4-926F-7BF0-B891-135CD9D60DBD}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {004BC32A-90C7-4AC6-82DD-E2C1CC0EAE44}
+	EndGlobalSection
+EndGlobal

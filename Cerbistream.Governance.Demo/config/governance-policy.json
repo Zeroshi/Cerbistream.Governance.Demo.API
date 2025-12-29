@@ -1,0 +1,24 @@
+{
+  "defaultPolicy": {
+    "action": "reject",
+    "reason": "No matching policy for this topic",
+    "allowedRoles": []
+  },
+  "topics": [
+    {
+      "name": "user-data",
+      "policies": [
+        {
+          "id": "PII-001",
+          "description": "Compliance handles PII events",
+          "condition": {
+            "metadataEquals": {
+              "containsPII": true
+            }
+          },
+          "allowedRoles": ["Compliance"]
+        }
+      ]
+    }
+  ]
+}
