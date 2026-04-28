@@ -40,8 +40,8 @@ public class GovernanceTests : IClassFixture<CustomWebApplicationFactory>
         var response = await _client.GetAsync("/governance/profile");
         response.EnsureSuccessStatusCode();
         var document = await response.Content.ReadFromJsonAsync<JsonElement>();
-        var hasLoggingProfiles = document.EnumerateObject().Any(p => string.Equals(p.Name, "LoggingProfiles", StringComparison.OrdinalIgnoreCase));
-        Assert.True(hasLoggingProfiles);
+        var hasDisallowedFields = document.EnumerateObject().Any(p => string.Equals(p.Name, "DisallowedFields", StringComparison.OrdinalIgnoreCase));
+        Assert.True(hasDisallowedFields);
     }
 
     [Fact]

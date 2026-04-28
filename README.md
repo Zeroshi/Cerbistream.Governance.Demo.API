@@ -3,25 +3,25 @@
 This demo shows how to wire CerbiStream governed logging together with the Cerbi runtime validator on .NET 8.
 
 ## What's included
-- CerbiStream 1.1.84
-- Cerbi.Governance.Runtime 1.1.10
-- CerbiStream.GovernanceAnalyzer 1.5.49 (latest net8-compatible)
+- CerbiStream 2.0.113
+- Cerbi.Governance.Runtime 2.0.34
+- CerbiStream.GovernanceAnalyzer 1.5.63 (latest net8-compatible)
 - Swagger UI enabled
 
 ## Config files
-- `config/cerbi_governance.json`: Cerbi governance profile for logging/runtime. Override path with `CERBI_GOVERNANCE_PATH`.
+- `config/cerbi_governance.json`: Cerbi governance profile for logging/runtime (v2 flat format). Override path with `CERBI_GOVERNANCE_PATH`.
 - `config/governance-policy.json`: Minimal sample policy (kept for reference).
 
 ## How it starts (Program.cs)
 - Logging: console + `AddCerbiGovernanceRuntime` (with fallback if the profile is missing).
 - Runtime validation: `RuntimeGovernanceValidator` loads `cerbi_governance.json` and annotates/denies when violations exist.
 - Endpoints:
-  - `GET /healthz` – readiness.
-  - `GET /governance/profile` – returns the loaded Cerbi governance profile.
-  - `POST /event` – validates request metadata; 403 when violations exist, 200 otherwise. Requires `x-user-role` header.
+  - `GET /healthz` - readiness.
+  - `GET /governance/profile` - returns the loaded Cerbi governance profile.
+  - `POST /event` - validates request metadata; 403 when violations exist, 200 otherwise. Requires `x-user-role` header.
 - Swagger available at `/swagger`.
 
-## What’s required vs. optional
+## What's required vs. optional
 - Required for Cerbi to function:
   - NuGet packages: `CerbiStream`, `Cerbi.Governance.Runtime` (matching API), and governance profile JSON (`cerbi_governance.json`).
   - Register `AddCerbiGovernanceRuntime` (for governed logging) and `RuntimeGovernanceValidator` (for request validation/annotation).
@@ -29,13 +29,30 @@ This demo shows how to wire CerbiStream governed logging together with the Cerbi
 - Optional but recommended (app-level best practices):
   - Validate requests (body, topic, header) and return 400/403 instead of letting exceptions surface.
   - Guard profile loading/logging registration so missing/invalid profiles fall back to console logging instead of crashing.
-  - Decide how to act on violations (e.g., 403) — the runtime annotates; your app chooses the response policy.
+  - Decide how to act on violations (e.g., 403) - the runtime annotates; your app chooses the response policy.
+
+## Governance profile format (v2)
+The `cerbi_governance.json` uses the flat v2 profile format:
+```json
+{
+  "Name": "default",
+  "Version": "1.0.0",
+  "Status": "Published",
+  "AllowRelax": false,
+  "DisallowedFields": [ "password", "ssn", "creditCard" ],
+  "FieldSeverities": {
+    "password": "Forbidden",
+    "secret": "Forbidden"
+  }
+}
+```
+The previous `LoggingProfiles` nested format was used in v1.x and is no longer supported in v2.x.
 
 ## Pilot vs. Full Demo
 
 ### Pilot (minimum to see CerbiStream work)
-- Packages: `CerbiStream` 1.1.84, `Cerbi.Governance.Runtime` 1.1.10.
-- Config: `config/cerbi_governance.json` (or set `CERBI_GOVERNANCE_PATH`).
+- Packages: `CerbiStream` 2.0.113, `Cerbi.Governance.Runtime` 2.0.34.
+- Config: `config/cerbi_governance.json` (flat v2 format, or set `CERBI_GOVERNANCE_PATH`).
 - Code: keep `AddCerbiGovernanceRuntime` and `RuntimeGovernanceValidator`; keep `/event` endpoint returning 200 when no violations, 403 when violations.
 - You can skip extra request guards; Cerbi will still annotate. Expect less friendly errors if inputs are bad.
 
@@ -53,6 +70,24 @@ Use the Full demo as default; use Pilot when you want the smallest surface to pr
 2) Run the API: `dotnet run --project Cerbistream.Governance.Demo/Cerbistream.Governance.Demo.csproj`
 3) Open Swagger: `https://localhost:5001/swagger`
 
+## Test results (latest run)
+
+All 5 tests pass against the latest packages:
+
+```
+Total tests: 5
+     Passed: 5
+ Total time: ~0.9 Seconds
+```
+
+| Test | Result |
+|------|--------|
+| `Health_ReturnsOk` | Passed |
+| `GovernanceProfile_ReturnsProfile` | Passed |
+| `Event_Allows_When_No_Violations` | Passed |
+| `Event_Forbidden_When_Governance_Violation` | Passed |
+| `Event_BadRequest_When_Topic_Missing` | Passed |
+
 ## Example requests
 - Allowed:
   - Header: `x-user-role: Compliance`
@@ -67,3 +102,4 @@ Use the Full demo as default; use Pilot when you want the smallest surface to pr
 - If you move configs, set `CERBI_GOVERNANCE_PATH` to the profile location.
 - CerbiStream logging wrapper uses the updated runtime; if a future runtime/API mismatch appears, the extension will log a fallback message and continue with console logging.
 - Analyzer runs at build/IDE time; runtime validation happens on `/event` requests.
+- The v2 governance profile is a flat JSON object - use `DisallowedFields` and `FieldSeverities` directly instead of the nested `LoggingProfiles` format from v1.x.
