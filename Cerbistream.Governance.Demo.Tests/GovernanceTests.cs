@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Net.Http.Json;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.IO;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Xunit;
 
@@ -42,6 +43,80 @@ public class GovernanceTests : IClassFixture<CustomWebApplicationFactory>
         var document = await response.Content.ReadFromJsonAsync<JsonElement>();
         var hasLoggingProfiles = document.EnumerateObject().Any(p => string.Equals(p.Name, "LoggingProfiles", StringComparison.OrdinalIgnoreCase));
         Assert.True(hasLoggingProfiles);
+    }
+
+
+    [Fact]
+    public void GovernanceProfileLoader_Throws_When_Profile_Missing()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"cerbi-governance-{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, """
+        {
+          "EnforcementMode": "Strict",
+          "LoggingProfiles": {
+            "default": {
+              "name": "default",
+              "version": "2026.07",
+              "disallowedFields": ["password"],
+              "fieldSeverities": {}
+            }
+          }
+        }
+        """);
+
+        try
+        {
+            var ex = Assert.Throws<InvalidOperationException>(() => GovernanceProfileLoader.LoadWrappedProfile(path, "missing"));
+            Assert.Contains("missing", ex.Message);
+            Assert.Contains("default", ex.Message);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void GovernanceProfileLoader_Throws_When_Profile_Name_Ambiguous()
+    {
+        var path = Path.Combine(Path.GetTempPath(), $"cerbi-governance-{Guid.NewGuid():N}.json");
+        File.WriteAllText(path, """
+        {
+          "EnforcementMode": "Strict",
+          "LoggingProfiles": {
+            "default": {
+              "name": "default",
+              "version": "2026.07",
+              "disallowedFields": ["password"],
+              "fieldSeverities": {}
+            },
+            "audit": {
+              "name": "audit",
+              "version": "2026.07",
+              "disallowedFields": ["password"],
+              "fieldSeverities": {}
+            }
+          }
+        }
+        """);
+
+        try
+        {
+            var ex = Assert.Throws<InvalidOperationException>(() => GovernanceProfileLoader.LoadWrappedProfile(path, " "));
+            Assert.Contains("CERBI_GOVERNANCE_PROFILE", ex.Message);
+        }
+        finally
+        {
+            File.Delete(path);
+        }
+    }
+
+    [Fact]
+    public void GovernanceConfigFiles_Are_Copied_To_Output()
+    {
+        var baseDirectory = AppContext.BaseDirectory;
+        Assert.True(File.Exists(Path.Combine(baseDirectory, "config", "cerbi_governance.json")));
+        Assert.True(File.Exists(Path.Combine(baseDirectory, "config", "governance-policy.json")));
     }
 
     [Fact]

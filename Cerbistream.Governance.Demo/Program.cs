@@ -9,37 +9,25 @@ var builder = WebApplication.CreateBuilder(args);
 // REQUIRED: path to Cerbi governance profile (override with CERBI_GOVERNANCE_PATH when deploying)
 var cerbiGovernancePath = Environment.GetEnvironmentVariable("CERBI_GOVERNANCE_PATH")
     ?? Path.Combine(AppContext.BaseDirectory, "config", "cerbi_governance.json");
+var cerbiGovernanceProfileName = Environment.GetEnvironmentVariable("CERBI_GOVERNANCE_PROFILE") ?? "default";
+var governanceProfile = GovernanceProfileLoader.LoadWrappedProfile(cerbiGovernancePath, cerbiGovernanceProfileName);
 
 builder.Logging.ClearProviders();
 builder.Logging.AddConsole();
 
 // REQUIRED: CerbiStream governed logging (enforces profile before logs hit sinks).
-// OPTIONAL best practice: guard missing/invalid profile so startup doesn’t crash; Cerbi will still run if you remove the guard, but failure won’t be graceful.
-if (File.Exists(cerbiGovernancePath))
-{
-    try
-    {
-        builder.Logging.AddCerbiGovernanceRuntime(
-            LoggerFactory.Create(b => b.AddConsole()),
-            profileName: "default",
-            configPath: cerbiGovernancePath);
-    }
-    catch (Exception ex)
-    {
-        Console.WriteLine($"[CerbiStream] Failed to enable governed logging: {ex.Message}. Falling back to console-only logging.");
-    }
-}
-else
-{
-    Console.WriteLine($"[CerbiStream] Governance profile not found at '{cerbiGovernancePath}'. Running without governed logging.");
-}
+// Startup fails fast when the configured wrapped profile is missing or invalid so the demo never silently uses another profile.
+builder.Logging.AddCerbiGovernanceRuntime(
+    LoggerFactory.Create(b => b.AddConsole()),
+    profileName: governanceProfile.Name,
+    configPath: cerbiGovernancePath);
 
 // REQUIRED: runtime validator to annotate/validate structured data using the Cerbi profile (hot-reloads on file changes).
 // OPTIONAL best practice: input validation below (header/body/topic) for clean 400/403 responses; Cerbi runtime will still annotate without it.
-var governanceSource = new FileGovernanceSource(cerbiGovernancePath);
+var governanceSource = new FileGovernanceSource(cerbiGovernancePath, governanceProfile.Name);
 var validator = new RuntimeGovernanceValidator(
     isEnabled: () => true,
-    profileName: "default",
+    profileName: governanceProfile.Name,
     source: governanceSource,
     plugins: Array.Empty<IRuntimeGovernancePlugin>());
 
@@ -64,10 +52,7 @@ app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }))
 // Expose the active Cerbi governance profile (helps confirm which rules are loaded)
 app.MapGet("/governance/profile", () =>
 {
-    var profile = governanceSource.Load();
-    return profile is null
-        ? Results.NotFound("Governance profile not found")
-        : Results.Ok(profile);
+    return Results.Ok(governanceProfile.Document);
 }).WithName("GetGovernanceProfile")
   .WithTags("Governance");
 
@@ -130,6 +115,42 @@ app.MapPost("/event", ([FromHeader(Name = "x-user-role")] string? userRole, [Fro
 .WithTags("Governance");
 
 app.Run();
+
+
+public sealed record LoadedGovernanceProfile(string Name, JsonElement Document);
+
+public static class GovernanceProfileLoader
+{
+    public static LoadedGovernanceProfile LoadWrappedProfile(string path, string profileName)
+    {
+        if (string.IsNullOrWhiteSpace(profileName))
+        {
+            throw new InvalidOperationException("CERBI_GOVERNANCE_PROFILE must name the wrapped governance profile to load.");
+        }
+
+        if (!File.Exists(path))
+        {
+            throw new FileNotFoundException($"Cerbi governance configuration was not found at '{path}'. Set CERBI_GOVERNANCE_PATH to a valid Runtime 2.x wrapper file.", path);
+        }
+
+        using var stream = File.OpenRead(path);
+        using var document = JsonDocument.Parse(stream);
+        var root = document.RootElement;
+
+        if (!root.TryGetProperty("LoggingProfiles", out var profiles) || profiles.ValueKind != JsonValueKind.Object)
+        {
+            throw new InvalidOperationException($"Cerbi governance configuration '{path}' must use the Runtime 2.x wrapper format with a LoggingProfiles object.");
+        }
+
+        if (!profiles.TryGetProperty(profileName, out _))
+        {
+            var availableProfiles = string.Join(", ", profiles.EnumerateObject().Select(p => p.Name));
+            throw new InvalidOperationException($"Cerbi governance profile '{profileName}' was not found in '{path}'. Available profiles: {availableProfiles}.");
+        }
+
+        return new LoadedGovernanceProfile(profileName, root.Clone());
+    }
+}
 
 // Request/response DTOs for the demo endpoint
 public class EventRequest

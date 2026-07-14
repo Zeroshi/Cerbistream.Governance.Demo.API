@@ -1,0 +1,53 @@
+name: Governance Demo CI
+
+on:
+  pull_request:
+    branches:
+      - master
+      - main
+      - '**'
+
+jobs:
+  validate:
+    name: Restore, build, test, and smoke check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Restore
+        run: dotnet restore Cerbistream.Governance.Demo.API.sln
+
+      - name: Build Release for all target frameworks
+        run: dotnet build Cerbistream.Governance.Demo.API.sln --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test Cerbistream.Governance.Demo.API.sln --configuration Release --no-build --logger "trx;LogFileName=test-results.trx"
+
+      - name: Verify governance configs copied to output
+        run: |
+          test -f Cerbistream.Governance.Demo/bin/Release/net8.0/config/cerbi_governance.json
+          test -f Cerbistream.Governance.Demo/bin/Release/net8.0/config/governance-policy.json
+          test -f Cerbistream.Governance.Demo/bin/Release/net9.0/config/cerbi_governance.json
+          test -f Cerbistream.Governance.Demo/bin/Release/net9.0/config/governance-policy.json
+
+      - name: Application startup smoke check
+        run: |
+          dotnet run --project Cerbistream.Governance.Demo/Cerbistream.Governance.Demo.csproj --configuration Release --framework net8.0 --no-build --urls http://127.0.0.1:5080 > smoke.log 2>&1 &
+          APP_PID=$!
+          trap 'kill $APP_PID 2>/dev/null || true' EXIT
+          for i in {1..30}; do
+            if curl -fsS http://127.0.0.1:5080/healthz; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat smoke.log
+          exit 1

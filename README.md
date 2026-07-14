@@ -1,69 +1,72 @@
-# CerbiStream Governance Demo (net8)
+# CerbiStream Governance Demo
 
-This demo shows how to wire CerbiStream governed logging together with the Cerbi runtime validator on .NET 8.
+This demo wires CerbiStream governed logging to the Cerbi Governance Runtime on .NET 8 and .NET 9. It is intentionally local-file based: application logs are governed in-process before they leave the application, with no control-plane or network dependency in the runtime hot path.
 
 ## What's included
-- CerbiStream 1.1.84
-- Cerbi.Governance.Runtime 1.1.10
-- CerbiStream.GovernanceAnalyzer 1.5.49 (latest net8-compatible)
-- Swagger UI enabled
+
+- `CerbiStream` 2.0.6
+- `Cerbi.Governance.Runtime` 2.0.43
+- Swagger UI enabled for local exploration
+- Pull-request CI for restore, Release builds, tests, config-copy validation, and a credential-free startup smoke check
 
 ## Config files
-- `config/cerbi_governance.json`: Cerbi governance profile for logging/runtime. Override path with `CERBI_GOVERNANCE_PATH`.
-- `config/governance-policy.json`: Minimal sample policy (kept for reference).
 
-## How it starts (Program.cs)
-- Logging: console + `AddCerbiGovernanceRuntime` (with fallback if the profile is missing).
-- Runtime validation: `RuntimeGovernanceValidator` loads `cerbi_governance.json` and annotates/denies when violations exist.
+- `config/cerbi_governance.json`: active Runtime 2.x wrapped governance profile. Override the file path with `CERBI_GOVERNANCE_PATH`.
+- `config/governance-policy.json`: older sample topic policy kept for reference only; it is not the active runtime logging profile.
+
+The active wrapped config uses `LoggingProfiles` only and does not mix canonical root profile markers:
+
+```json
+{
+  "EnforcementMode": "Strict",
+  "LoggingProfiles": {
+    "default": {
+      "name": "default",
+      "version": "2026.07",
+      "disallowedFields": ["password"],
+      "fieldSeverities": {}
+    }
+  }
+}
+```
+
+The selected profile defaults to `default`. Set `CERBI_GOVERNANCE_PROFILE` to choose a different wrapped profile. Startup fails with a clear error when the configured file is missing, does not use the Runtime 2.x wrapper format, or does not contain the selected profile.
+
+## How it starts
+
+- Logging: console + `AddCerbiGovernanceRuntime`, using the configured wrapped profile name.
+- Runtime validation: `RuntimeGovernanceValidator` uses `FileGovernanceSource` with the same configured profile name, so the API does not silently drift to another profile.
 - Endpoints:
-  - `GET /healthz` – readiness.
-  - `GET /governance/profile` – returns the loaded Cerbi governance profile.
-  - `POST /event` – validates request metadata; 403 when violations exist, 200 otherwise. Requires `x-user-role` header.
+  - `GET /healthz` â€” readiness.
+  - `GET /governance/profile` â€” returns the loaded wrapped governance config.
+  - `POST /event` â€” validates request metadata; returns 403 when governed violations are present, 200 otherwise. Requires `x-user-role` header.
 - Swagger available at `/swagger`.
 
-## What’s required vs. optional
-- Required for Cerbi to function:
-  - NuGet packages: `CerbiStream`, `Cerbi.Governance.Runtime` (matching API), and governance profile JSON (`cerbi_governance.json`).
-  - Register `AddCerbiGovernanceRuntime` (for governed logging) and `RuntimeGovernanceValidator` (for request validation/annotation).
-  - Ensure the profile file is present (or set `CERBI_GOVERNANCE_PATH`).
-- Optional but recommended (app-level best practices):
-  - Validate requests (body, topic, header) and return 400/403 instead of letting exceptions surface.
-  - Guard profile loading/logging registration so missing/invalid profiles fall back to console logging instead of crashing.
-  - Decide how to act on violations (e.g., 403) — the runtime annotates; your app chooses the response policy.
-
-## Pilot vs. Full Demo
-
-### Pilot (minimum to see CerbiStream work)
-- Packages: `CerbiStream` 1.1.84, `Cerbi.Governance.Runtime` 1.1.10.
-- Config: `config/cerbi_governance.json` (or set `CERBI_GOVERNANCE_PATH`).
-- Code: keep `AddCerbiGovernanceRuntime` and `RuntimeGovernanceValidator`; keep `/event` endpoint returning 200 when no violations, 403 when violations.
-- You can skip extra request guards; Cerbi will still annotate. Expect less friendly errors if inputs are bad.
-
-### Full demo (best practices, already wired)
-- Same packages/config/registrations as Pilot.
-- Add request validation for clean 400/403 (topic/header/body checks).
-- Guard profile loading so missing/invalid profiles fall back to console logging instead of crashing.
-- Swagger + health + profile endpoints.
-- Explicit allow/deny policy based on `GovernanceViolations`/`GovernanceRelaxed`.
-
-Use the Full demo as default; use Pilot when you want the smallest surface to prove CerbiStream works.
-
 ## Run locally
-1) Restore/build/tests: `dotnet test Cerbistream.Governance.Demo.Tests/Cerbistream.Governance.Demo.Tests.csproj` (tests cover health, profile, allow/deny, bad request).
-2) Run the API: `dotnet run --project Cerbistream.Governance.Demo/Cerbistream.Governance.Demo.csproj`
-3) Open Swagger: `https://localhost:5001/swagger`
+
+1. Restore dependencies: `dotnet restore Cerbistream.Governance.Demo.API.sln`
+2. Build all target frameworks: `dotnet build Cerbistream.Governance.Demo.API.sln --configuration Release --no-restore`
+3. Run tests: `dotnet test Cerbistream.Governance.Demo.API.sln --configuration Release --no-build`
+4. Run the API: `dotnet run --project Cerbistream.Governance.Demo/Cerbistream.Governance.Demo.csproj --framework net8.0`
+5. Open Swagger: `https://localhost:5001/swagger` or the URL printed by `dotnet run`.
 
 ## Example requests
-- Allowed:
-  - Header: `x-user-role: Compliance`
-  - Body: `{ "topic": "user-data", "metadata": {} }`
-  - Result: 200, `Allowed`.
-- Denied (violation):
-  - Header: `x-user-role: Support`
-  - Body: `{ "topic": "user-data", "metadata": { "password": "secret" } }`
-  - Result: 403, governance violations tagged (password redacted in logs).
+
+Allowed structured event:
+
+- Header: `x-user-role: Compliance`
+- Body: `{ "topic": "user-data", "metadata": { "operation": "created" } }`
+- Result: 200, `Allowed`.
+
+Governed violation path:
+
+- Header: `x-user-role: Support`
+- Body: `{ "topic": "user-data", "metadata": { "password": "secret" } }`
+- Result: 403, because `password` is disallowed by the selected governance profile and the governed record is logged through CerbiStream.
 
 ## Notes for developers
-- If you move configs, set `CERBI_GOVERNANCE_PATH` to the profile location.
-- CerbiStream logging wrapper uses the updated runtime; if a future runtime/API mismatch appears, the extension will log a fallback message and continue with console logging.
-- Analyzer runs at build/IDE time; runtime validation happens on `/event` requests.
+
+- Keep governance runtime configuration local and deterministic. Do not route application logs through a public control-plane service.
+- If you move configs, set `CERBI_GOVERNANCE_PATH` to the wrapped profile file.
+- If you add profiles, set `CERBI_GOVERNANCE_PROFILE` explicitly in launch or deployment instructions.
+- Do not add direct `Cerbi.Governance.Core` or `CerbiShield.Contracts` references unless code imports those packages or NuGet restore requires a direct aligned dependency.
