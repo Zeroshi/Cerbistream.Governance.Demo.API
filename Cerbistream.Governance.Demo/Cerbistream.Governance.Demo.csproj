@@ -7,8 +7,8 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="CerbiStream" Version="2.0.5" />
-    <PackageReference Include="Cerbi.Governance.Runtime" Version="1.1.7" />
+    <PackageReference Include="CerbiStream" Version="2.0.6" />
+    <PackageReference Include="Cerbi.Governance.Runtime" Version="2.0.43" />
     <PackageReference Include="Swashbuckle.AspNetCore" Version="10.1.0" />
   </ItemGroup>
 

@@ -1,15 +1,11 @@
 {
-  "Version": "1.0.0",
+  "EnforcementMode": "Strict",
   "LoggingProfiles": {
     "default": {
-      "RequiredFields": [ "message", "timestamp" ],
-      "ForbiddenFields": [ "password" ],
-      "DisallowedFields": [ "ssn", "creditCard" ],
-      "FieldSeverities": {
-        "password": "Forbidden",
-        "secret": "Forbidden"
-      },
-      "SensitiveTags": [ "PII", "Secret" ]
+      "name": "default",
+      "version": "2026.07",
+      "disallowedFields": ["password"],
+      "fieldSeverities": {}
     }
   }
 }
